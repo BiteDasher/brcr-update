@@ -15,9 +15,9 @@ sudo curl -s -L -o $workdir/html "https://cros-updates-serving.appspot.com/" || 
 echo ">>> If you don't know, press Enter and the script will try to parse from the system file"
 read -rp "Enter your Chrome OS board name: " board
 if [ -z "$board" ]; then
-	board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1 | rev)"
+	board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | sed -e 's/\s.*$//' | rev)"
 fi
-if [ -z "$(cat $workdir/csv | cut -d "," -f 1 | sed '1d' | grep -x $board)" ]; then
+if [ -z "$(cat $workdir/csv | cut -d "," -f 1 | sed '1d' | grep -x "$board")" ]; then
 	echo -e "The name of \e[0;32m$board\e[0m was not found in the file. Try again."
 	exit 1
 fi
