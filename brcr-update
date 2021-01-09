@@ -1,0 +1,54 @@
+#!/bin/bash
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/opt/bin:/usr/local/bin"
+[[ $(id -u) -eq 0 ]] && {
+	echo "Do not run this program as root, or via sudo"
+	exit 1
+}
+workdir="/usr/local/brcr_updater"
+url="https://cros-updates-serving.appspot.com/csv"
+[ -d "$workdir" ] || sudo mkdir -p $workdir
+cd $workdir
+echo "===> Downloading csv file"
+sudo curl -s -L -o $workdir/csv "$url" || exit 2
+echo "===> Downloading html file"
+sudo curl -s -L -o $workdir/html "https://cros-updates-serving.appspot.com/" || exit 2
+echo ">>> If you don't know, press Enter and the script will try to parse from the system file"
+read -rp "Enter your Chrome OS board name: " board
+if [ -z "$board" ]; then
+	board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb_release" | rev | cut -d " " -f 1 | rev)"
+fi
+if [ -z "$(cat $workdir/csv | cut -d "," -f 1 | sed '1d' | grep -x $board)" ]; then
+	echo -e "The name of \e[0;32m$board\e[0m was not found in the file. Try again."
+	exit 1
+fi
+echo "===> Getting latest available release of brunch"
+brunch="$(curl -s -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
+brunch_url="$(curl -s -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
+echo "===> Parsing..."
+sudo sed "/<tr id=\"$board\".*<\/tr>\$/!d" -i "$workdir/html"
+version="$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | sort -V | tail -n 1)"
+if [ -z "$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | grep -x "$version")" ]; then
+	echo -e "The \e[0;33m$version\e[0m version doesn't exists for board \e[0;32m$board\e[0m"
+	exit 1
+fi
+build_url="$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">'$version'<' | cut -d ">" -f 1 | sed 's/\"//g')"
+build_num="$(echo $build_url | grep -o "chromeos_.*_$board" | cut -d "_" -f 2)"
+echo "Board name:                "$board""
+echo "Latest ChromeOS build:     "$build_num""
+echo "Latest ChromeOS version:   "$version""
+echo "Latest available brunch:   "$brunch""
+echo ""
+echo -e "Click \e[0;33mEnter\e[0m to continue"
+read
+echo "===> Downloading brunch $brunch"
+sudo curl -s -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
+echo "===> Downloading ChromeOS $build_num"
+sudo curl -s -L -o "$workdir/chromeos.bin.zip" "$build_url"
+echo "===> Unpacking ChromeOS .zip archive..."
+unzip "$workdir/chromeos.bin.zip" || exit 2
+mv "$workdir/chromeos_*" "$workdir/chromeos.bin" || exit 2
+echo "===> Updating..."
+sudo chromeos-update -f "$workdir/$(echo $brunch_url | grep -o "[^/]*$")" -r "$workdir/chromeos.bin"
+echo "===> Done!"
+echo "---> Cleaning up..."
+rm -rf "$workdir"
