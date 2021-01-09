@@ -3,9 +3,11 @@
 export PATH="${PATH/\/usr\/local\/bin:/}"
 cd /usr/local
 rm -rf "__brcr"
-git clone "https://github.com/BiteDasher/brcr-update.git" "__brcr"
+mkdir __brcr
 [ -d /usr/local/bin ] || mkdir -p /usr/bin
 cd __brcr
+curl -L -o brcr-update https://raw.githubusercontent.com/BiteDasher/brcr-update/master/brcr-update
+curl -L -o unzip https://raw.githubusercontent.com/BiteDasher/brcr-update/master/unzip
 install -m 755 brcr-update /usr/bin/brcr-update
 install -m 755 unzip /usr/bin/unzip
 cd /
