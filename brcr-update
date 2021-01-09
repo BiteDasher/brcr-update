@@ -35,8 +35,10 @@ if [ -z "$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f
 fi
 build_url="$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">'$version'<' | cut -d ">" -f 1 | sed 's/\"//g')"
 build_num="$(echo $build_url | grep -o "chromeos_.*_$board" | cut -d "_" -f 2)"
+cur_version="$(grep "CHROMEOS_RELEASE_VERSION=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
 echo "Board name:                "$board""
 echo "Latest ChromeOS build:     "$build_num""
+echo "Current ChromeOS build:    "$cur_version""
 echo "Latest ChromeOS version:   "$version""
 echo "Latest available brunch:   "$brunch""
 echo ""
