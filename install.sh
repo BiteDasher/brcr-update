@@ -4,7 +4,6 @@ export PATH="${PATH/\/usr\/local\/bin:/}"
 cd /usr/local
 rm -rf "__brcr"
 mkdir __brcr
-[ -d /usr/local/bin ] || mkdir -p /usr/bin
 cd __brcr
 curl -L -o brcr-update https://raw.githubusercontent.com/BiteDasher/brcr-update/master/brcr-update
 curl -L -o unzip https://raw.githubusercontent.com/BiteDasher/brcr-update/master/unzip
