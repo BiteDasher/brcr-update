@@ -11,10 +11,13 @@ cd $workdir
 echo "===> Downloading csv file"
 sudo curl -s -L -o $workdir/csv "$url" || exit 2
 echo "===> Downloading html file"
+# In fact, I do not know what other method can be used to get the latest current version of the recovery image
 sudo curl -s -L -o $workdir/html "https://cros-updates-serving.appspot.com/" || exit 2
 echo ">>> If you don't know, press Enter and the script will try to parse from the system file"
 read -rp "Enter your Chrome OS board name: " board
 if [ -z "$board" ]; then
+	# In some cases, a space appears at the end of the line.
+	# To avoid incorrect parsing, we will declare the variable without quotes, so that unnecessary spaces are removed.
 	board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
 	board=$board
 	board="$(echo $board | cut -d " " -f 1)"
@@ -24,9 +27,11 @@ if [ -z "$(cat $workdir/csv | cut -d "," -f 1 | sed '1d' | grep -x "$board")" ];
 	exit 1
 fi
 echo "===> Getting latest available release of brunch"
+# Then it will be possible to enter all the received text into a variable once, and then parse
 brunch="$(curl -s -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
 brunch_url="$(curl -s -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
 echo "===> Parsing..."
+# Yeah. That's ugly.
 sudo sed "/<tr id=\"$board\".*<\/tr>\$/!d" -i "$workdir/html"
 version="$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | sort -V | tail -n 1)"
 if [ -z "$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | grep -x "$version")" ]; then
