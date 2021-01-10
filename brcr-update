@@ -1,9 +1,5 @@
 #!/bin/bash
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/opt/bin:/usr/local/bin"
-[[ $(id -u) -eq 0 ]] && {
-	echo "Do not run this program as root, or via sudo"
-	exit 1
-}
 trapcom() {
 sudo rm -rf "$workdir"; exit 0
 }
@@ -46,4 +42,4 @@ echo "===> Updating..."
 sudo chromeos-update -f "$workdir/$(echo $brunch_url | grep -o "[^/]*$")" -r "$workdir/chromeos.bin"
 echo "===> Done!"
 echo "---> Cleaning up..."
-rm -rf "$workdir"
+sudo rm -rf "$workdir"
