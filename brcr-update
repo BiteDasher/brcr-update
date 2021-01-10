@@ -4,58 +4,44 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/opt/bin:/usr/local/bin"
 	echo "Do not run this program as root, or via sudo"
 	exit 1
 }
+trapcom() {
+sudo rm -rf "$workdir"; exit 0
+}
+trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
 url="https://cros-updates-serving.appspot.com/csv"
 [ -d "$workdir" ] || sudo mkdir -p $workdir
 cd $workdir
 echo "===> Downloading csv file"
-sudo curl -s -L -o $workdir/csv "$url" || exit 2
-echo "===> Downloading html file"
-# In fact, I do not know what other method can be used to get the latest current version of the recovery image
-sudo curl -s -L -o $workdir/html "https://cros-updates-serving.appspot.com/" || exit 2
-echo ">>> If you don't know, press Enter and the script will try to parse from the system file"
-read -rp "Enter your Chrome OS board name: " board
-if [ -z "$board" ]; then
-	# In some cases, a space appears at the end of the line.
-	# To avoid incorrect parsing, we will declare the variable without quotes, so that unnecessary spaces are removed.
-	board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
-	board=$board
-	board="$(echo $board | cut -d " " -f 1)"
-fi
-if [ -z "$(cat $workdir/csv | cut -d "," -f 1 | sed '1d' | grep -x "$board")" ]; then
-	echo -e "The name of \e[0;32m$board\e[0m was not found in the file. Try again."
-	exit 1
-fi
+sudo curl --progress-bar -s -S -L -o $workdir/csv "$url" || exit 2
+echo "===> Downloading recovery.conf file"
+sudo curl --progress-bar -s -S -L -o $workdir/recovery.conf "https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf" || exit 2
+board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
+board=$board
+board="$(echo $board | cut -d " " -f 1)"
 echo "===> Getting latest available release of brunch"
-# Then it will be possible to enter all the received text into a variable once, and then parse
-brunch="$(curl -s -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
-brunch_url="$(curl -s -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
+_brunch="$(curl --progress-bar -s -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
+brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
+brunch_url="$(echo "$_brunch" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
 echo "===> Parsing..."
-# Yeah. That's ugly.
-sudo sed "/<tr id=\"$board\".*<\/tr>\$/!d" -i "$workdir/html"
-version="$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | sort -V | tail -n 1)"
-if [ -z "$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | grep -x "$version")" ]; then
-	echo -e "The \e[0;33m$version\e[0m version doesn't exists for board \e[0;32m$board\e[0m"
-	exit 1
-fi
-build_url="$(cat ./html | sed 's/<a/\n/g' | grep -o '"http.*">'$version'<' | cut -d ">" -f 1 | sed 's/\"//g')"
-build_num="$(echo $build_url | grep -o "chromeos_.*_$board" | cut -d "_" -f 2)"
+string="$(grep -o "url=.*/chromeos_.*_${board}_.*.bin\..*" recovery.conf | sort -V | tail -n 1)"
+build_num="$(grep -B 12 --max-count 1 "$string" ./recovery.conf | grep -o "version=.*" | cut -d "=" -f 2)"
+build_url="$(echo "$string" | cut -d "=" -f 2-)"
 cur_version="$(grep "CHROMEOS_RELEASE_VERSION=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
 echo "Board name:                "$board""
 echo "Latest ChromeOS build:     "$build_num""
 echo "Current ChromeOS build:    "$cur_version""
-echo "Latest ChromeOS version:   "$version""
 echo "Latest available brunch:   "$brunch""
 echo ""
 echo -e "Click \e[0;33mEnter\e[0m to continue"
 read
 echo "===> Downloading brunch $brunch"
-sudo curl -s -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
+sudo curl --progress-bar -s -S -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
 echo "===> Downloading ChromeOS $build_num"
-sudo curl -s -L -o "$workdir/chromeos.bin.zip" "$build_url"
+sudo curl --progress-bar -s -S -L -o "$workdir/chromeos.bin.zip" "$build_url"
 echo "===> Unpacking ChromeOS .zip archive..."
-unzip "$workdir/chromeos.bin.zip" || exit 2
-mv "$workdir/chromeos_*" "$workdir/chromeos.bin" || exit 2
+sudo unzip "$workdir/chromeos.bin.zip" || exit 2
+sudo mv "$workdir/chromeos_"* "$workdir/chromeos.bin" || exit 2
 echo "===> Updating..."
 sudo chromeos-update -f "$workdir/$(echo $brunch_url | grep -o "[^/]*$")" -r "$workdir/chromeos.bin"
 echo "===> Done!"
