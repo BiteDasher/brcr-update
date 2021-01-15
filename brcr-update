@@ -7,7 +7,7 @@ trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
 url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf"
 [ -d "$workdir" ] || sudo mkdir -p $workdir
-[ -n "$(uname -m | grep "i.*86")" ] && { mode="x86-"; echo "WARNING: your device CPU is x86. This script will download the latest brunch, which is most likely incompatible with x86. Continue? (Press Enter if yes, Ctrl-C if no)"; read; } || mode=
+[ -n "$(uname -m | grep "i.*86")" ] && { echo "WARNING: your device CPU is x86. Latest brunch is incompatible with x86.)"; exit 1; }
 cd $workdir
 echo "===> Downloading recovery.conf file"
 sudo curl --progress-bar -s -S -L -o $workdir/recovery.conf "$url" || exit 2
@@ -19,7 +19,7 @@ _brunch="$(curl --progress-bar -s -S -L -o - "https://api.github.com/repos/seban
 brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
 brunch_url="$(echo "$_brunch" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
 echo "===> Parsing..."
-string="$(grep -o "url=.*/chromeos_.*_${mode}${board}_.*.bin\..*" recovery.conf | sort -V | tail -n 1)"
+string="$(grep -o "url=.*/chromeos_.*_${board}_.*.bin\..*" recovery.conf | sort -V | tail -n 1)"
 build_num="$(grep -B 12 --max-count 1 "$string" ./recovery.conf | grep -o "version=.*" | cut -d "=" -f 2)"
 build_url="$(echo "$string" | cut -d "=" -f 2-)"
 cur_version="$(grep "CHROMEOS_RELEASE_VERSION=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
