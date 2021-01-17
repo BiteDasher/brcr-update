@@ -6,16 +6,22 @@ sudo rm -rf "$workdir"; exit 0
 trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
 url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf"
+all=0; for num in $(lsblk -b --output FSAVAIL -z -P -n $(rootdev -d) | sed '/FSAVAIL=""/d' | cut -d '"' -f 2); do
+all=$(( num / 1000 / 1000 / 1000 + all)); done
+if (( "$all" < 5 )); then
+	echo "WARNING: There is less than 5 gigabytes of free space left on your device. The installation may fail. Continue? (Enter for yes, Ctrl+C for no)"
+	read -p "> "
+fi
 [ -d "$workdir" ] || sudo mkdir -p $workdir
-[ -n "$(uname -m | grep "i.*86")" ] && { echo "WARNING: your device CPU is x86. Latest brunch is incompatible with x86.)"; exit 1; }
+[ -n "$(uname -m | grep "i.*86")" ] && { echo "ERROR: your device CPU is x86. Latest brunch is incompatible with x86.)"; exit 1; }
 cd $workdir
 echo "===> Downloading recovery.conf file"
-sudo curl --progress-bar -s -S -L -o $workdir/recovery.conf "$url" || exit 2
+sudo curl --progress-bar -S -L -o $workdir/recovery.conf "$url" || exit 2
 board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
 board=$board
 board="$(echo $board | cut -d " " -f 1)"
 echo "===> Getting latest available release of brunch"
-_brunch="$(curl --progress-bar -s -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
+_brunch="$(curl --progress-bar -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
 brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
 brunch_url="$(echo "$_brunch" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
 echo "===> Parsing..."
@@ -31,9 +37,9 @@ echo ""
 echo -e "Click \e[0;33mEnter\e[0m to continue"
 read
 echo "===> Downloading brunch $brunch"
-sudo curl --progress-bar -s -S -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
+sudo curl --progress-bar -S -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
 echo "===> Downloading ChromeOS $build_num"
-sudo curl --progress-bar -s -S -L -o "$workdir/chromeos.bin.zip" "$build_url"
+sudo curl --progress-bar -S -L -o "$workdir/chromeos.bin.zip" "$build_url"
 echo "===> Unpacking ChromeOS .zip archive..."
 sudo unzip "$workdir/chromeos.bin.zip" || exit 2
 sudo mv "$workdir/chromeos_"* "$workdir/chromeos.bin" || exit 2
