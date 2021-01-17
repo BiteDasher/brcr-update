@@ -7,7 +7,7 @@ trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
 url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf"
 all=0; for num in $(lsblk -b --output FSAVAIL -z -P -n $(rootdev -d) | sed '/FSAVAIL=""/d' | cut -d '"' -f 2); do
-all=$(( num / 1000 / 1000 / 1000 + all)); done
+all=$(( num / 1000 / 1000 / 1000 + all )); done
 if (( "$all" < 5 )); then
 	echo "WARNING: There is less than 5 gigabytes of free space left on your device. The installation may fail. Continue? (Enter for yes, Ctrl+C for no)"
 	read -p "> "
@@ -35,7 +35,7 @@ echo "Current ChromeOS build:    "$cur_version""
 echo "Latest available brunch:   "$brunch""
 echo ""
 echo -e "Click \e[0;33mEnter\e[0m to continue"
-read
+read -p "> "
 echo "===> Downloading brunch $brunch"
 sudo curl --progress-bar -S -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
 echo "===> Downloading ChromeOS $build_num"
