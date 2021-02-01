@@ -6,12 +6,12 @@ sudo rm -rf "$workdir"; exit 0
 trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
 url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf"
-all=0; for num in $(lsblk -b --output FSAVAIL -z -P -n $(rootdev -d) | sed '/FSAVAIL=""/d' | cut -d '"' -f 2); do
-all=$(( num / 1000 / 1000 / 1000 + all )); done
-if (( "$all" < 5 )); then
-	echo "WARNING: There is less than 5 gigabytes of free space left on your device. The installation may fail. Continue? (Enter for yes, Ctrl+C for no)"
-	read -p "> "
-fi
+#all=0; for num in $(lsblk -b --output FSAVAIL -z -P -n $(rootdev -d) | sed '/FSAVAIL=""/d' | cut -d '"' -f 2); do
+#all=$(( num / 1000 / 1000 / 1000 + all )); done
+#if (( "$all" < 5 )); then
+#	echo "WARNING: There is less than 5 gigabytes of free space left on your device. The installation may fail. Continue? (Enter for yes, Ctrl+C for no)"
+#	read -p "> "
+#fi
 [ -d "$workdir" ] || sudo mkdir -p $workdir
 [ -n "$(uname -m | grep "i.*86")" ] && { echo "ERROR: your device CPU is x86. Latest brunch is incompatible with x86.)"; exit 1; }
 cd $workdir
