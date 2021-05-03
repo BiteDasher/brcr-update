@@ -19,7 +19,7 @@ echo "===> Downloading recovery.conf file"
 sudo curl --progress-bar -S -L -o $workdir/recovery.conf "$url" || exit 2
 board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
 board=$board
-board="$(echo $board | cut -d " " -f 1)"
+board="${board% *}"
 echo "===> Getting latest available release of brunch"
 _brunch="$(curl --progress-bar -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
 brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
@@ -29,10 +29,22 @@ string="$(grep -o "url=.*/chromeos_.*_${board}_.*.bin\..*" recovery.conf | sort 
 build_num="$(grep -B 12 --max-count 1 "$string" ./recovery.conf | grep -o "version=.*" | cut -d "=" -f 2)"
 build_url="$(echo "$string" | cut -d "=" -f 2-)"
 cur_version="$(grep "CHROMEOS_RELEASE_VERSION=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
+cur_brunch="$(cut -d " " -f 2- /etc/brunch_version)"
+cur_brunch="${cur_brunch// /-}"
 echo "Board name:                "$board""
 echo "Latest ChromeOS build:     "$build_num""
 echo "Current ChromeOS build:    "$cur_version""
 echo "Latest available brunch:   "$brunch""
+echo "Current brunch:            "$cur_brunch""
+brunch_step1="${brunch%%-*}"
+brunch_step2="${brunch##*-}"
+brunch_step3="${brunch_step1}-${brunch_step2}"
+if [ "$build_num" != "$cur_version" ]; then
+echo -e "New version of \e[1;36mCh\e[1;31mr\e[1;33mo\e[1;32mme\e[0;36mOS\e[0m available!"
+fi
+if [ "$brunch_step3" != "$cur_brunch" ]; then
+echo -e "New version of \e[0;31mbrunch\e[0m available!"
+fi
 echo ""
 echo -e "Click \e[0;33mEnter\e[0m to continue"
 read -p "> "
