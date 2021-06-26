@@ -1,11 +1,14 @@
 #!/bin/bash
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/opt/bin:/usr/local/bin"
+WEB_DOWN=0
 trapcom() {
 sudo rm -rf "$workdir"; exit 0
 }
 trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
 url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf"
+html="https://cros-updates-serving.appspot.com/"
+github="https://api.github.com/repos/sebanc/brunch/releases"
 #all=0; for num in $(lsblk -b --output FSAVAIL -z -P -n $(rootdev -d) | sed '/FSAVAIL=""/d' | cut -d '"' -f 2); do
 #all=$(( num / 1000 / 1000 / 1000 + all )); done
 #if (( "$all" < 5 )); then
@@ -20,10 +23,10 @@ sudo curl --progress-bar -S -L -o $workdir/recovery.conf "$url" || exit 2
 board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
 board=$board
 board="${board% *}"
-echo "===> Getting latest available release of brunch"
-_brunch="$(curl --progress-bar -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
-brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
-brunch_url="$(echo "$_brunch" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
+echo "===> Downloading HTML cros-updates file"
+sudo curl --progress-bar -S -L -o $workdir/html "$html" || WEB_DOWN=1
+echo "===> Downloading brunch releases information"
+sudo curl --progress-bar -S -L -o $workdir/github "$github" || exit 2
 echo "===> Parsing..."
 string="$(grep -o "url=.*/chromeos_.*_${board}_.*.bin\..*" recovery.conf | sort -V | tail -n 1)"
 build_num="$(grep -B 12 --max-count 1 "$string" ./recovery.conf | grep -o "version=.*" | cut -d "=" -f 2)"
@@ -31,11 +34,35 @@ build_url="$(echo "$string" | cut -d "=" -f 2-)"
 cur_version="$(grep "CHROMEOS_RELEASE_VERSION=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
 cur_brunch="$(cut -d " " -f 2- /etc/brunch_version)"
 cur_brunch="${cur_brunch// /-}"
+cur_cros="$(grep "CHROMEOS_RELEASE_CHROME_MILESTONE=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
+if [ "$WEB_DOWN" == 1 ]; then
+echo -e "\e[0;31mcros-updates site is currently down, I get the latest release of the brunch based on the latest release from GitHub\e[0m"
+sleep 3
+echo "===> Getting latest available release of brunch"
+_brunch="$(curl --progress-bar -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
+brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
+brunch_url="$(echo "$_brunch" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
+else
+cros="$(cat ./html | sed -e '/<tr id="'$board'".*<\/tr>$/!d' -e 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | sort -V | tail -n 1)"
+_brunch="$(cat ./github | grep -A 45 '"tag_name":.*r'${cros}'-stable.*')"
+if [ -z "$_brunch" ]; then
+echo -e "\e[0;31mThe brunch update for r${cur_cros} version of Chrome OS has not yet been released\e[0m"
+exit 0
+fi
+brunch="$(echo "$_brunch" | head -n 1 | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
+brunch_url="$(echo "$_brunch" | grep -o '"browser_download_url":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
+fi
 echo "Board name:                "$board""
+echo ''
 echo "Latest ChromeOS build:     "$build_num""
 echo "Current ChromeOS build:    "$cur_version""
+[ "$WEB_DOWN" == 0 ] && \
+echo "Latest ChromeOS version:   "$cros""
+echo "Current ChromeOS version:  "$cur_cros""
+echo ''
 echo "Latest available brunch:   "$brunch""
 echo "Current brunch:            "$cur_brunch""
+echo ''
 brunch_step1="${brunch%%-*}"
 brunch_step2="${brunch##*-}"
 brunch_step3="${brunch_step1}-${brunch_step2}"
