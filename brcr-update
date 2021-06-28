@@ -1,6 +1,7 @@
 #!/bin/bash
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/opt/bin:/usr/local/bin"
 WEB_DOWN=0
+nothing_new=0
 trapcom() {
 sudo rm -rf "$workdir"; exit 0
 }
@@ -46,11 +47,28 @@ else
 cros="$(cat ./html | sed -e '/<tr id="'$board'".*<\/tr>$/!d' -e 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | sort -V | tail -n 1)"
 _brunch="$(cat ./github | grep -A 45 '"tag_name":.*r'${cros}'-stable.*')"
 if [ -z "$_brunch" ]; then
-echo -e "\e[0;31mThe brunch update for r${cur_cros} version of Chrome OS has not yet been released\e[0m"
-exit 0
+	echo -e "\e[0;31mThe brunch update for r${cur_cros} version of Chrome OS has not yet been released\e[0m"
+	exit 0
 fi
 brunch="$(echo "$_brunch" | head -n 1 | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
-brunch_url="$(echo "$_brunch" | grep -o '"browser_download_url":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
+brunch_url="$(echo "$_brunch" | grep --max-count 1 -o '"browser_download_url":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
+fi
+if [[ -z "$brunch_url" || -z "$build_url" ]]; then
+	echo -e "\e[0;31mERROR: Failed to get url for brunch/recovery download. Check your internet connection, and if everything is fine, open an issue on GitHub\e[0m"
+	echo 'Debug output (attach this to issue)'
+	echo '----------'
+	cat <<EOF
+brunch_url: "$brunch_url"
+build_url: "$build_url"
+cur_cros: "$cur_cros"
+cros: "$cros"
+string: "$string"
+build_num: "$build_num"
+board: "$board"
+cur_brunch: "$cur_brunch"
+brunch: "$brunch"
+EOF
+	exit 1
 fi
 echo "Board name:                "$board""
 echo ''
@@ -67,13 +85,27 @@ brunch_step1="${brunch%%-*}"
 brunch_step2="${brunch##*-}"
 brunch_step3="${brunch_step1}-${brunch_step2}"
 if [ "$build_num" != "$cur_version" ]; then
-echo -e "New version of \e[1;36mCh\e[1;31mr\e[1;33mo\e[1;32mme\e[0;36mOS\e[0m available!"
+	echo -e "New version of \e[1;36mCh\e[1;31mr\e[1;33mo\e[1;32mme\e[0;36mOS\e[0m available!"
+	nothing_new=0
+else
+	nothing_new=1
 fi
 if [ "$brunch_step3" != "$cur_brunch" ]; then
-echo -e "New version of \e[0;31mbrunch\e[0m available!"
+	echo -e "New version of \e[0;31mbrunch\e[0m available!"
+	nothing_new=0
+else
+	nothing_new=1
 fi
 echo ""
-echo -e "Click \e[0;33mEnter\e[0m to continue"
+if [ "$nothing_new" == 1 ]; then
+	echo -e "\e[1mNothing to update...\e[0m"
+	text="Ctrl+C"
+	text2="cancel"
+else
+	text="Enter"
+	text2="continue"
+fi
+echo -e "Click \e[0;33m${text}\e[0m to ${text2}"
 read -p "> "
 echo "===> Downloading brunch $brunch"
 sudo curl --progress-bar -S -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
