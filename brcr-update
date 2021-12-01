@@ -1,14 +1,12 @@
 #!/bin/bash
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/opt/bin:/usr/local/bin"
-WEB_DOWN=0
 nothing_new=0
 trapcom() {
-sudo rm -rf "$workdir"; exit 0
+sudo rm -rf "$workdir"; exit 1
 }
 trap trapcom SIGTERM SIGINT
 workdir="/usr/local/brcr_updater"
-url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.conf"
-html="https://cros-updates-serving.appspot.com/"
+url="https://dl.google.com/dl/edgedl/chromeos/recovery/recovery.json"
 github="https://api.github.com/repos/sebanc/brunch/releases"
 #all=0; for num in $(lsblk -b --output FSAVAIL -z -P -n $(rootdev -d) | sed '/FSAVAIL=""/d' | cut -d '"' -f 2); do
 #all=$(( num / 1000 / 1000 / 1000 + all )); done
@@ -16,35 +14,27 @@ github="https://api.github.com/repos/sebanc/brunch/releases"
 #	echo "WARNING: There is less than 5 gigabytes of free space left on your device. The installation may fail. Continue? (Enter for yes, Ctrl+C for no)"
 #	read -p "> "
 #fi
-[ -d "$workdir" ] || sudo mkdir -p $workdir
+[ -d "$workdir" ] || sudo mkdir -p "$workdir"
 [ -n "$(uname -m | grep "i.*86")" ] && { echo "ERROR: your device CPU is x86. Latest brunch is incompatible with x86.)"; exit 1; }
 cd $workdir
-echo "===> Downloading recovery.conf file"
-sudo curl --progress-bar -S -L -o $workdir/recovery.conf "$url" || exit 2
+echo "===> Downloading recovery.json file"
+sudo curl --progress-bar -S -L -o "$workdir"/recovery.json "$url" || exit 2
 board="$(grep "CHROMEOS_RELEASE_DESCRIPTION=.*" "/etc/lsb-release" | rev | cut -d " " -f 1,2 | rev)"
 board=$board
 board="${board% *}"
-echo "===> Downloading HTML cros-updates file"
-sudo curl --progress-bar -S -L -o $workdir/html "$html" || WEB_DOWN=1
 echo "===> Downloading brunch releases information"
-sudo curl --progress-bar -S -L -o $workdir/github "$github" || exit 2
+sudo curl --progress-bar -S -L -o "$workdir"/github "$github" || exit 2
 echo "===> Parsing..."
-string="$(grep -o "url=.*/chromeos_.*_${board}_.*.bin\..*" recovery.conf | sort -V | tail -n 1)"
-build_num="$(grep -B 12 --max-count 1 "$string" ./recovery.conf | grep -o "version=.*" | cut -d "=" -f 2)"
-build_url="$(echo "$string" | cut -d "=" -f 2-)"
+string="$(grep -o '"url":.*/chromeos_.*_rammus_.*.bin\..*"' recovery.json | sort -V | tail -n 1)"
+info_string="$(grep -A 6 --max-count 1 "$string" ./recovery.json)"
+build_num="$(echo "$info_string" | grep --max-count 1 -o '"version":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
+build_url="$(echo "$string" | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
 cur_version="$(grep "CHROMEOS_RELEASE_VERSION=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
 cur_brunch="$(cut -d " " -f 2- /etc/brunch_version)"
 cur_brunch="${cur_brunch// /-}"
 cur_cros="$(grep "CHROMEOS_RELEASE_CHROME_MILESTONE=.*" "/etc/lsb-release" | cut -d "=" -f 2)"
-if [ "$WEB_DOWN" == 1 ]; then
-echo -e "\e[0;31mcros-updates site is currently down, I get the latest release of the brunch based on the latest release from GitHub\e[0m"
-sleep 3
-echo "===> Getting latest available release of brunch"
-_brunch="$(curl --progress-bar -S -L -o - "https://api.github.com/repos/sebanc/brunch/releases/latest")"
-brunch="$(echo "$_brunch" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
-brunch_url="$(echo "$_brunch" | grep '"browser_download_url":' | sed -E 's/.*"([^"]+)".*/\1/')"
-else
-cros="$(cat ./html | sed -e '/<tr id="'$board'".*<\/tr>$/!d' -e 's/<a/\n/g' | grep -o '"http.*">.*<' | cut -d ">" -f 2 | cut -d "<" -f 1 | sort -V | tail -n 1)"
+
+cros="$(echo "$info_string" | grep --max-count 1 -o '"chrome_version":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",' | cut -d "." -f 1)"
 _brunch="$(cat ./github | grep -A 45 '"tag_name":.*r'${cros}'-stable.*')"
 if [ -z "$_brunch" ]; then
 	echo -e "\e[0;31mThe brunch update for r${cur_cros} version of Chrome OS has not yet been released\e[0m"
@@ -52,7 +42,7 @@ if [ -z "$_brunch" ]; then
 fi
 brunch="$(echo "$_brunch" | head -n 1 | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
 brunch_url="$(echo "$_brunch" | grep --max-count 1 -o '"browser_download_url":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
-fi
+
 if [[ -z "$brunch_url" || -z "$build_url" ]]; then
 	echo -e "\e[0;31mERROR: Failed to get url for brunch/recovery download. Check your internet connection, and if everything is fine, open an issue on GitHub\e[0m"
 	echo 'Debug output (attach this to issue)'
@@ -74,7 +64,6 @@ echo "Board name:                "$board""
 echo ''
 echo "Latest ChromeOS build:     "$build_num""
 echo "Current ChromeOS build:    "$cur_version""
-[ "$WEB_DOWN" == 0 ] && \
 echo "Latest ChromeOS version:   "$cros""
 echo "Current ChromeOS version:  "$cur_cros""
 echo ''
@@ -84,7 +73,7 @@ echo ''
 brunch_step1="${brunch%%-*}"
 brunch_step2="${brunch##*-}"
 brunch_step3="${brunch_step1}-${brunch_step2}"
-if [ "$build_num" != "$cur_version" ]; then
+if [[ "$build_num" != "$cur_version" ]] && (( ${cur_version//./} < ${build_num//./} )); then
 	echo -e "New version of \e[1;36mCh\e[1;31mr\e[1;33mo\e[1;32mme\e[0;36mOS\e[0m available!"
 	nothing_new=0
 else
@@ -108,7 +97,7 @@ fi
 echo -e "Click \e[0;33m${text}\e[0m to ${text2}"
 read -p "> "
 echo "===> Downloading brunch $brunch"
-sudo curl --progress-bar -S -L -o $workdir/$(echo $brunch_url | grep -o "[^/]*$") "$brunch_url"
+sudo curl --progress-bar -S -L -o "$workdir/$(echo $brunch_url | grep -o "[^/]*$")" "$brunch_url"
 echo "===> Downloading ChromeOS $build_num"
 sudo curl --progress-bar -S -L -o "$workdir/chromeos.bin.zip" "$build_url"
 echo "===> Unpacking ChromeOS .zip archive..."
