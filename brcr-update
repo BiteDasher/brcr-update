@@ -72,6 +72,7 @@ echo "Current brunch:            "$cur_brunch""
 echo ''
 brunch_step1="${brunch%%-*}"
 brunch_step2="${brunch##*-}"
+brunch_compare="${cur_brunch##*-}"
 brunch_step3="${brunch_step1}-${brunch_step2}"
 if [[ "$build_num" != "$cur_version" ]] && (( ${cur_version//./} < ${build_num//./} )); then
 	echo -e "New version of \e[1;36mCh\e[1;31mr\e[1;33mo\e[1;32mme\e[0;36mOS\e[0m available!"
@@ -79,7 +80,7 @@ if [[ "$build_num" != "$cur_version" ]] && (( ${cur_version//./} < ${build_num//
 else
 	nothing_new=1
 fi
-if [ "$brunch_step3" != "$cur_brunch" ]; then
+if [[ "$brunch_step3" != "$cur_brunch" ]] && (( ${brunch_compare} < ${brunch_step2} )) ; then
 	echo -e "New version of \e[0;31mbrunch\e[0m available!"
 	nothing_new=0
 else
