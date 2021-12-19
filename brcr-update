@@ -25,7 +25,7 @@ board="${board% *}"
 echo "===> Downloading brunch releases information"
 sudo curl --progress-bar -S -L -o "$workdir"/github "$github" || exit 2
 echo "===> Parsing..."
-string="$(grep -o '"url":.*/chromeos_.*_rammus_.*.bin\..*"' recovery.json | sort -V | tail -n 1)"
+string="$(grep -o '"url":.*/chromeos_.*_'${board}'_.*.bin\..*"' recovery.json | sort -V | tail -n 1)"
 info_string="$(grep -A 6 --max-count 1 "$string" ./recovery.json)"
 build_num="$(echo "$info_string" | grep --max-count 1 -o '"version":.*' | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
 build_url="$(echo "$string" | sed 's/^[[:blank:]]*//' | cut -d " " -f 2- | tr -d '",')"
